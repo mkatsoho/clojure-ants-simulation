@@ -1,3 +1,5 @@
+*.del
+
 classes
 lib
 ants.jar
@@ -7,6 +9,8 @@ compstore
 ants-local.jnlp
 sign.cmd
 
+.calva/
+.nrepl-port
 .clj-kondo
 .lsp
 target/
