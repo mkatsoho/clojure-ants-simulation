@@ -5,12 +5,23 @@ This is Rich Hickey's ant colony simulation, and includes an update for running 
 
 Feedback welcome. 
 
-## Add call stack diagram
+## the story (the requirement)
+
+- Ant colony simulation
+- World populated with food and ants
+- Ants find food, bring home, drop pheromones
+- Sense pheromones, food, home
+- Ants act independently, on multiple real threads
+- Model pheromone evaporation
+- Animated GUI
+- < 250 lines of Clojure
+
+
+## call-stack diagram
 
 [call-stack-ants.svg](call-stack-ants.svg)
 
 
 ![call-stack-ants.png](call-stack-ants.png)
-
 
 
