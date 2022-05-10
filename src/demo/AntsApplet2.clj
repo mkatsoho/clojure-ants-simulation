@@ -1,6 +1,5 @@
 (ns demo.AntsApplet2
-  (:import
-   (javax.swing JApplet))
+  ;; (:import (javax.swing JApplet JPanel JLabel JFrame)
   (:gen-class
    :post-init post-init
    :extends javax.swing.JApplet))
@@ -14,44 +13,54 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-;dimensions of square world
-(def dim 80)
-;number of ants = nants-sqrt^2
-(def nants-sqrt 7)
-;number of places with food
-(def food-places 35)
-;range of amount of food at a place
-(def food-range 100)
-;scale factor for pheromone drawing
-(def pher-scale 20.0)
-;scale factor for food drawing
-(def food-scale 30.0)
-;evaporation rate
-(def evap-rate 0.99)
+(def dim "dimensions of square world" 80)
+(def nants-sqrt "number of ants = nants-sqrt^2" 7)
+(def food-places "number of places with food" 35)
+(def food-range "range of amount of food at a place " 100)
+(def pher-scale "scale factor for pheromone drawing " 20.0)
+(def food-scale "scale factor for food drawing " 30.0)
+(def evap-rate "evaporation rate" 0.99)
 
+;TODO 
 (def animation-sleep-ms 100)
+;TODO 
 (def ant-sleep-ms 40)
+;TODO 
 (def evap-sleep-ms 1000)
 
+;TODO 
 (def running true)
 
-(defstruct cell :food :pher) ;may also have :ant and :home
+(def cell
+  "a cell of world at (x,y). 
+  as struct {:food :pher :ant :home}, :ant and :home is optional. 
+  :home is true/false, 
+  :ant is struct ant, "
+  (create-struct :food :pher))
 
-;world is a 2d vector of refs to cells
 (def world
+  "world is a 2d vector of refs to cells, a dim * dim map"
   (apply vector
          (map (fn [_]
                 (apply vector (map (fn [_] (ref (struct cell 0 0)))
                                    (range dim))))
               (range dim))))
 
-(defn place [[x y]]
+(defn place
+  "get the (x, y) cell of the world"
+  [[x y]]
   (-> world (nth x) (nth y)))
 
-(defstruct ant :dir) ;may also have :food
+(def ant
+  "struct ant {:dir :food},  
+   :food is optional,
+   :dir means the direction of the next move, 
+   :food means how many food carried by the ant.
+   "
+  (create-struct :dir))
 
 (defn create-ant
-  "create an ant at the location, returning an ant agent on the location"
+  "create an ant at the location, as [x y], returning an ant agent at the location"
   [loc dir]
   (sync nil
         (let [p (place loc)
@@ -59,14 +68,15 @@
           (alter p assoc :ant a)
           (agent loc))))
 
-(def home-off (/ dim 4))
-(def home-range (range home-off (+ nants-sqrt home-off)))
+(def home-off "home-off = dim/4. The ant home is a square of home-off * home-off" (/ dim 4))
+(def home-range "The ant home consists of cells, located at home-range X home-range" (range home-off (+ nants-sqrt home-off)))
+
 
 (defn setup
   "places initial food and ants, returns seq of ant agents"
   []
   (sync nil
-        (dotimes [i food-places]
+        (dotimes [_ food-places]
           (let [p (place [(rand-int dim) (rand-int dim)])]
             (alter p assoc :food (rand-int food-range))))
         (doall
@@ -145,9 +155,10 @@
       (alter oldp assoc :pher (inc (:pher @oldp))))
     newloc))
 
-(defn take-food [loc]
+(defn take-food
   "Takes one food from current location. Must be called in a
   transaction that has verified there is food available"
+  [loc]
   (let [p (place loc)
         ant (:ant @p)]
     (alter p assoc
@@ -155,9 +166,10 @@
            :ant (assoc ant :food true))
     loc))
 
-(defn drop-food [loc]
+(defn drop-food
   "Drops food at current location. Must be called in a
   transaction that has verified the ant has food"
+  [loc]
   (let [p (place loc)
         ant (:ant @p)]
     (alter p assoc
@@ -228,7 +240,9 @@
 (import
  '(java.awt Color Graphics Dimension)
  '(java.awt.image BufferedImage)
- '(javax.swing JPanel JFrame))
+ '(javax.swing JPanel)
+ ;'(javax.swing JPanel JFrame)
+ )
 
 ;pixels per world cell
 (def scale 5)
@@ -239,9 +253,9 @@
     (.fillRect (* x scale) (* y scale) scale scale)))
 
 (defn render-ant [ant #^Graphics g x y]
-  (let [black (. (new Color 0 0 0 255) (getRGB))
-        gray (. (new Color 100 100 100 255) (getRGB))
-        red (. (new Color 255 0 0 255) (getRGB))
+  (let [_black (. (new Color 0 0 0 255) (getRGB))
+        _gray (. (new Color 100 100 100 255) (getRGB))
+        _red (. (new Color 255 0 0 255) (getRGB))
         [hx hy tx ty] ({0 [2 0 2 4]
                         1 [4 0 0 4]
                         2 [4 2 0 2]
@@ -297,7 +311,7 @@
 
 (def animator (agent nil))
 
-(defn animation [x]
+(defn animation [_x]
   (when running
     (send-off *agent* #'animation))
   (. panel (repaint))
@@ -306,13 +320,14 @@
 
 (def evaporator (agent nil))
 
-(defn evaporation [x]
+(defn evaporation [_x]
   (when running
     (send-off *agent* #'evaporation))
   (evaporate)
   (. Thread (sleep evap-sleep-ms))
   nil)
 
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn -post-init [this]
   ;(def jpanel (JPanel.))
   ;(.add jpanel (JLabel. "This is my first applet"))
@@ -320,10 +335,10 @@
 
   (.setVisible this true)
 
-  (def ants (setup))
-  (send-off animator animation)
-  (dorun (map #(send-off % behave) ants))
-  (send-off evaporator evaporation))
+  (let [ants (setup)]
+    (send-off animator animation)
+    (dorun (map #(send-off % behave) ants))
+    (send-off evaporator evaporation)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; use ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (comment
