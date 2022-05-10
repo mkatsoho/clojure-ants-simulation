@@ -13,6 +13,10 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
+
+;; business logic  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; static variables 
 (def dim "dimensions of square world" 80)
 (def nants-sqrt "number of ants = nants-sqrt^2" 7)
 (def food-places "number of places with food" 35)
@@ -21,18 +25,18 @@
 (def food-scale "scale factor for food drawing " 30.0)
 (def evap-rate "evaporation rate" 0.99)
 
-;TODO 
-(def animation-sleep-ms 100)
-;TODO 
-(def ant-sleep-ms 40)
-;TODO 
-(def evap-sleep-ms 1000)
+(def animation-sleep-ms "sleep ms for animation" 100)
+(def ant-sleep-ms "sleep ms used for ant's behave" 40)
+(def evap-sleep-ms "sleep ms for evaporate" 1000)
+(def running "runing flag for animation" true)
 
-;TODO 
-(def running true)
+(def home-off "home-off = dim/4. The ant home is a square of home-off * home-off" (/ dim 4))
+(def home-range "The ant home is a square, consists of cells, located at home-range X home-range" (range home-off (+ nants-sqrt home-off)))
 
+
+;; variables and functions 
 (def cell
-  "a cell of world at (x,y). 
+  "struct cell, a cell of world at (x,y). 
   as struct {:food :pher :ant :home}, :ant and :home is optional. 
   :home is true/false, 
   :ant is struct ant, "
@@ -62,29 +66,25 @@
 (defn create-ant
   "create an ant at the location, as [x y], returning an ant agent at the location"
   [loc dir]
-  (sync nil
-        (let [p (place loc)
-              a (struct ant dir)]
-          (alter p assoc :ant a)
-          (agent loc))))
-
-(def home-off "home-off = dim/4. The ant home is a square of home-off * home-off" (/ dim 4))
-(def home-range "The ant home consists of cells, located at home-range X home-range" (range home-off (+ nants-sqrt home-off)))
-
+  (dosync
+   (let [p (place loc)
+         a (struct ant dir)]
+     (alter p assoc :ant a)
+     (agent loc))))
 
 (defn setup
   "places initial food and ants, returns seq of ant agents"
   []
-  (sync nil
-        (dotimes [_ food-places]
-          (let [p (place [(rand-int dim) (rand-int dim)])]
-            (alter p assoc :food (rand-int food-range))))
-        (doall
-         (for [x home-range y home-range]
-           (do
-             (alter (place [x y])
-                    assoc :home true)
-             (create-ant [x y] (rand-int 8)))))))
+  (dosync
+   (dotimes [_ food-places]
+     (let [p (place [(rand-int dim) (rand-int dim)])]
+       (alter p assoc :food (rand-int food-range))))
+   (doall
+    (for [x home-range y home-range]
+      (do
+        (alter (place [x y])
+               assoc :home true) ; in ant-home square, set each cell :home as true
+        (create-ant [x y] (rand-int 8))))))) ; in ant-home square, set each call with one ant
 
 (defn bound
   "returns n wrapped into range 0-b"
@@ -94,6 +94,7 @@
       (+ n b)
       n)))
 
+;; TODO
 (defn wrand
   "given a vector of slice sizes, returns the index of a slice given a
   random spin of a roulette wheel with compartments proportional to
@@ -106,25 +107,24 @@
         i
         (recur (inc i) (+ (slices i) sum))))))
 
-;dirs are 0-7, starting at north and going clockwise
-;these are the deltas in order to move one step in given dir
-(def dir-delta {0 [0 -1]
-                1 [1 -1]
-                2 [1 0]
-                3 [1 1]
-                4 [0 1]
-                5 [-1 1]
-                6 [-1 0]
-                7 [-1 -1]})
+(def dir-delta
+  "directions are 0-7, starting at north and going clockwise
+  these are the deltas in order to move one step in given dir"
+  {0 [0 -1]
+   1 [1 -1]
+   2 [1 0]
+   3 [1 1]
+   4 [0 1]
+   5 [-1 1]
+   6 [-1 0]
+   7 [-1 -1]})
 
 (defn delta-loc
-  "returns the location one step in the given dir. Note the world is a torus"
+  "returns the new location one step in the given direction. Note the world is a torus"
   [[x y] dir]
   (let [[dx dy] (dir-delta (bound 8 dir))]
     [(bound dim (+ x dx)) (bound dim (+ y dy))]))
 
-;(defmacro dosync [& body]
-;  `(sync nil ~@body))
 
 ;ant agent functions
 ;an ant agent tracks the location of an ant, and controls the behavior of 
@@ -228,7 +228,7 @@
             loc)))))))
 
 (defn evaporate
-  "causes all the pheromones to evaporate a bit"
+  "loops all cells, causes all the pheromones to evaporate a bit"
   []
   (dorun
    (for [x (range dim) y (range dim)]
@@ -236,7 +236,10 @@
       (let [p (place [x y])]
         (alter p assoc :pher (* evap-rate (:pher @p))))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; UI ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; UI logic ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; imports
 (import
  '(java.awt Color Graphics Dimension)
  '(java.awt.image BufferedImage)
@@ -244,8 +247,8 @@
  ;'(javax.swing JPanel JFrame)
  )
 
-;pixels per world cell
-(def scale 5)
+;; static varibles
+(def scale "pixels per world cell" 5)
 
 (defn fill-cell [#^Graphics g x y c]
   (doto g
@@ -307,9 +310,10 @@
                                      (* scale dim)
                                      (* scale dim)))))
 
+;; TODO del
 ;(def frame (doto (new JFrame) (.add panel) .pack .show))
 
-(def animator (agent nil))
+(def animator "animator agent, to sync transactions/threads" (agent nil))
 
 (defn animation [_x]
   (when running
@@ -318,7 +322,7 @@
   (. Thread (sleep animation-sleep-ms))
   nil)
 
-(def evaporator (agent nil))
+(def evaporator "evaporator agent, to sync transactions/threads" (agent nil))
 
 (defn evaporation [_x]
   (when running
@@ -327,18 +331,19 @@
   (. Thread (sleep evap-sleep-ms))
   nil)
 
+
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn -post-init [this]
   ;(def jpanel (JPanel.))
   ;(.add jpanel (JLabel. "This is my first applet"))
   (.setContentPane this panel)
-
   (.setVisible this true)
 
   (let [ants (setup)]
     (send-off animator animation)
     (dorun (map #(send-off % behave) ants))
     (send-off evaporator evaporation)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; use ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (comment
