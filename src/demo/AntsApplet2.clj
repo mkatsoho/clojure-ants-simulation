@@ -250,6 +250,8 @@
 ;; static varibles
 (def scale "pixels per world cell" 5)
 
+
+;; variables and functions
 (defn fill-cell [#^Graphics g x y c]
   (doto g
     (.setColor c)
@@ -272,6 +274,7 @@
       (.setColor (if (:food ant)
                    (new Color 255 0 0 255)
                    (new Color 0 0 0 255)))
+      ;; TODO bug - scale does NOT work
       (.drawLine (+ hx (* x scale)) (+ hy (* y scale))
                  (+ tx (* x scale)) (+ ty (* y scale))))))
 
@@ -313,16 +316,12 @@
 ;; TODO del
 ;(def frame (doto (new JFrame) (.add panel) .pack .show))
 
-(def animator "animator agent, to sync transactions/threads" (agent nil))
-
 (defn animation [_x]
   (when running
     (send-off *agent* #'animation))
   (. panel (repaint))
   (. Thread (sleep animation-sleep-ms))
   nil)
-
-(def evaporator "evaporator agent, to sync transactions/threads" (agent nil))
 
 (defn evaporation [_x]
   (when running
@@ -331,25 +330,24 @@
   (. Thread (sleep evap-sleep-ms))
   nil)
 
-
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
-(defn -post-init [this]
-  ;(def jpanel (JPanel.))
-  ;(.add jpanel (JLabel. "This is my first applet"))
-  (.setContentPane this panel)
-  (.setVisible this true)
-
-  (let [ants (setup)]
+(defn ants-simulation
+  "run ants simulation" []
+  (let [ants (setup)
+        animator (agent nil) ;; "animator agent, to sync transactions/threads" 
+        evaporator (agent nil) ;; "evaporator agent, to sync transactions/threads" 
+        ]
     (send-off animator animation)
     (dorun (map #(send-off % behave) ants))
     (send-off evaporator evaporation)))
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; use ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(comment
-;demo
-  (load-file "/Users/rich/dev/clojure/ants.clj")
-  (def ants (setup))
-  (send-off animator animation)
-  (dorun (map #(send-off % behave) ants))
-  (send-off evaporator evaporation))
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+(defn -post-init [this]
+  ;; TODO del
+  ;(def jpanel (JPanel.))
+  ;(.add jpanel (JLabel. "This is my first applet"))
+  (.setContentPane this panel)
+  (.setVisible this true)
+
+  (ants-simulation) ;; TODO use this func to replace line below
+  )
